@@ -200,6 +200,28 @@ const searchLocations = asyncHandler(async (req, res) => {
   });
 });
 
+const verifyOTP = asyncHandler(async (req, res) => {
+  const { phone, otp } = req.body;
+
+  const user = await User.findOne({ where: { phone, isActive: true } });
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid phone number or account deactivated' });
+  }
+
+  const expectedOTP = simulateOTP(phone);
+  if (otp !== expectedOTP) {
+    return res.status(401).json({ error: 'Invalid OTP' });
+  }
+
+  const tokens = generateTokens(user.id);
+  
+  res.json({
+    message: 'OTP validated',
+    user: user,
+    ...tokens
+  });
+});
+
 module.exports = {
   register,
   login,
@@ -207,5 +229,6 @@ module.exports = {
   logout,
   requestOTP,
   getLocations,
-  searchLocations
+  searchLocations,
+  verifyOTP,
 };
