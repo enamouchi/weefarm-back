@@ -42,5 +42,7 @@ router.post('/login', validateLogin, authController.login);
 router.post('/refresh', authController.refresh);
 router.post('/logout', authMiddleware('farmer'), authController.logout);
 router.post('/request-otp', validateOTP, authController.requestOTP);
+router.get('/locations', authController.getLocations);
+router.post('/verify-otp', authController.verifyOTP)
 
 module.exports = router;
