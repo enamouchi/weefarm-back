@@ -1,6 +1,22 @@
 // src/middleware/validationMiddleware.js
 const { body, param, query } = require('express-validator');
 
+// Helper function to clean phone number
+const cleanPhoneNumber = (phone) => {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('216')) {
+    return cleaned.substring(3);
+  }
+  return cleaned;
+};
+
+// Custom phone validator for Tunisia
+const validateTunisianPhone = (value) => {
+  const cleaned = cleanPhoneNumber(value);
+  // Tunisian mobile numbers are 8 digits and typically start with 2, 3, 4, 5, 7, or 9
+  return /^[23459][0-9]{7}$/.test(cleaned);
+};
+
 const validateRegister = [
   body('name')
     .notEmpty()
@@ -11,8 +27,12 @@ const validateRegister = [
   body('phone')
     .notEmpty()
     .withMessage('Phone number is required')
-    .matches(/^[+]?[0-9]{8,15}$/)
-    .withMessage('Please provide a valid phone number')
+    .custom((value) => {
+      if (!validateTunisianPhone(value)) {
+        throw new Error('Invalid Tunisian phone number format. Must be 8 digits starting with 2, 3, 4, 5, 7, or 9');
+      }
+      return true;
+    })
     .trim(),
   body('email')
     .optional()
@@ -23,6 +43,16 @@ const validateRegister = [
     .optional()
     .isIn(['farmer', 'citizen', 'service_provider', 'company'])
     .withMessage('Invalid role'),
+  // Updated to handle governorateId and delegationId
+  body('governorateId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Governorate ID must be a positive integer'),
+  body('delegationId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Delegation ID must be a positive integer'),
+  // Keep backward compatibility with governorate/municipality names
   body('governorate')
     .optional()
     .isLength({ max: 100 })
@@ -40,13 +70,29 @@ const validateRegister = [
   body('lng')
     .optional()
     .isFloat({ min: -180, max: 180 })
-    .withMessage('Longitude must be between -180 and 180')
+    .withMessage('Longitude must be between -180 and 180'),
+  // Custom validator to ensure both governorate and delegation are provided together
+  body('governorateId').custom((value, { req }) => {
+    if (value && !req.body.delegationId) {
+      throw new Error('Delegation ID is required when governorate ID is provided');
+    }
+    if (!value && req.body.delegationId) {
+      throw new Error('Governorate ID is required when delegation ID is provided');
+    }
+    return true;
+  }),
 ];
 
 const validateLogin = [
   body('phone')
     .notEmpty()
     .withMessage('Phone number is required')
+    .custom((value) => {
+      if (!validateTunisianPhone(value)) {
+        throw new Error('Invalid Tunisian phone number format');
+      }
+      return true;
+    })
     .trim(),
   body('otp')
     .notEmpty()
@@ -61,8 +107,12 @@ const validateOTP = [
   body('phone')
     .notEmpty()
     .withMessage('Phone number is required')
-    .matches(/^[+]?[0-9]{8,15}$/)
-    .withMessage('Please provide a valid phone number')
+    .custom((value) => {
+      if (!validateTunisianPhone(value)) {
+        throw new Error('Invalid Tunisian phone number format');
+      }
+      return true;
+    })
     .trim()
 ];
 
@@ -77,6 +127,23 @@ const validateUpdateProfile = [
     .isEmail()
     .withMessage('Please provide a valid email')
     .normalizeEmail(),
+  body('phone')
+    .optional()
+    .custom((value) => {
+      if (value && !validateTunisianPhone(value)) {
+        throw new Error('Invalid Tunisian phone number format');
+      }
+      return true;
+    })
+    .trim(),
+  body('governorateId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Governorate ID must be a positive integer'),
+  body('delegationId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Delegation ID must be a positive integer'),
   body('governorate')
     .optional()
     .isLength({ max: 100 })
@@ -214,5 +281,8 @@ module.exports = {
   validateUpdateProduct,
   validateUpdateOrderStatus,
   validateSendMessage,
-  validateCreateConversation
+  validateCreateConversation,
+  // Export helper functions for use in other parts of the app
+  cleanPhoneNumber,
+  validateTunisianPhone
 };
